@@ -108,7 +108,7 @@ services:
     depends_on:
       - monolith
       - movies-service
-      - events-service
+#      - events-service
     ports:
       - "8000:8000"
     environment:
@@ -116,8 +116,8 @@ services:
       MONOLITH_URL: http://monolith:8080
       MOVIES_SERVICE_URL: http://movies-service:8081
       EVENTS_SERVICE_URL: http://events-service:8082
-      GRADUAL_MIGRATION: "true"
-      MOVIES_MIGRATION_PERCENT: "50"
+      GRADUAL_MIGRATION: "false"
+      MOVIES_MIGRATION_PERCENT: "100"
     networks:
       - cinemaabyss-network
 

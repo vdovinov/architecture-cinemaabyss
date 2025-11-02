@@ -1,0 +1,162 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title C4 — Диаграмма контейнеров (To‑Be) «Кинобездна» — микросервисы в Kubernetes, единая точка входа, Kafka
+
+Person(user, "Пользователь", "Смотрит фильмы, ставит оценки, управляет подпиской")
+
+System_Boundary(k8s, "Kubernetes Cluster") {
+
+  System_Boundary(platform, "Кинобездна") {
+
+    ' Edge
+    'Container(ingress, "Ingress Controller", "NGINX/Contour", "Маршрутизация внешних запросов в кластер")
+    Container(gw, "API Gateway", "Kong", "Единая точка входа: маршрутизация, аутентификация, метрики")
+
+    ' Идентификация/SSO
+    'Container(auth, "Identity & Access Management", "Keycloak/OAuth2.1/OIDC", "Аутентификация, токены, управление доступом")
+    'ContainerDb(authdb, "Auth DB", "PostgreSQL", "Данные пользователей для IAM, клиенты, ключи")
+
+    ' BFF-слой под разные клиенты
+    Container(bff_web, "Web BFF", "Python", "API/агрегация для веб‑клиента")
+    Container(bff_mobile_tv, "Mobile/TV BFF", "Python", "API/агрегация для мобильных приложений и Smart TV")
+
+    ' Доменные сервисы
+    Container(users, "User Service", "Go", "Профили, учетки, предпочтения")
+    ContainerDb(users_db, "Users DB", "PostgreSQL", "Данные пользователей")
+
+    Container(metadata, "Metadata Service", "Go", "Метаданные о фильмах (жанры, актёры, оценки)")
+    ContainerDb(metadata_db, "Metadata DB", "PostgreSQL", "Метаданные")
+
+    Container(video, "Video Service", "Go", "Каталоги внешних онлайн‑кинотеатров, ссылки на контент, управление доступом")
+    ContainerDb(video_db, "Video DB", "PostgreSQL", "Служебные данные по контенту и правам доступа")
+
+    'Container(rating, "Ratings & Favorites Service", "Go", "Оценки, отзывы, избранное/плейлисты")
+    'ContainerDb(rating_db, "Ratings DB", "PostgreSQL", "Оценки и избранное")
+
+    Container(subscr, "Subscription Service", "Go", "Планы, статусы подписок, биллинг‑логика")
+    ContainerDb(subscr_db, "Subscription DB", "PostgreSQL", "Подписки и история изменений")
+
+    Container(billing, "Billing Service", "Go", "Начисления, инвойсы, налоговые правила, скидки")
+    ContainerDb(billing_db, "Billing DB", "PostgreSQL", "Инвойсы, транзакции, скидки")
+
+    Container(payments, "Payments Service", "Go", "Интеграция с платёжной системой")
+    ContainerDb(payments_db, "Payments DB", "PostgreSQL", "Статусы платежей, идемпотентность, логи")
+
+    'Container(loyalty, "Loyalty/Partners Integration", "Go", "Интеграции с программами лояльности, маркетплейсами, купоны")
+    'ContainerDb(loyalty_db, "Loyalty DB", "PostgreSQL", "Баллы, купоны, связка аккаунтов")
+
+    ' Поиск/выдача
+    'Container(search, "Search & Discovery", "Go/Elasticsearch", "Поиск по каталогу, фильтры, фасеты")
+    'ContainerDb(search_idx, "Search Index", "Elasticsearch", "Индекс каталога")
+
+    ' Рекомендации — интеграционный фасад
+    Container(reco, "Recommendation Service", "Go", "Обмен событиями с внешней рекомендательной системой")
+    ContainerDb(reco_db, "Recommendation Cache", "Redis", "Кэш рекомендаций")
+
+    ' Асинхронное взаимодействие
+    ContainerQueue(kafka, "Event Streaming", "Apache Kafka", "Доменные события, интеграции, стриминг")
+    'Container(queue_sr, "Schema Registry", "Confluent SR", "Схемы событий Avro/JSON")
+
+  }
+}
+
+' Внешние системы/хранилища
+System_Ext(payprov, "Платёжная система", "Card/ApplePay/GooglePay, webhooks")
+System_Ext(ott, "Внешние онлайн‑кинотеатры", "Каталоги/DRM/лицензии")
+System_Ext(s3, "S3", "Хранение вспомогательных файлов")
+System_Ext(reco_ext, "Рекомендательная система", "Внешняя, асинхронный обмен через Kafka")
+'System_Ext(loyalty_ext, "Программы лояльности/Маркетплейсы", "Кампании, купоны, начисления")
+
+' Клиенты
+Container_Boundary(clients, "Клиентские приложения") {
+  Container(webapp, "Web App", "SPA/React", "Фронтенд для браузера")
+  Container(mobileapp, "Mobile App", "iOS/Android", "Нативный клиент")
+  Container(tvapp, "Smart TV App", "Tizen/webOS/Android TV", "Клиент для ТВ")
+}
+
+' Связи: пользователи и клиенты
+Rel(user, webapp, "Использует")
+Rel(user, mobileapp, "Использует")
+Rel(user, tvapp, "Использует")
+
+Rel(webapp, gw, "HTTPS")
+Rel(mobileapp, gw, "HTTPS")
+Rel(tvapp, gw, "HTTPS")
+
+'Rel(ingress, gw, "Маршрутизация HTTP(S)")
+
+' Единая точка входа и BFF
+'Rel(gw, auth, "Аутентификация/авторизация (OIDC/OAuth2)")
+Rel_D(gw, bff_web, "Маршрутизация к", "HTTP")
+Rel_D(gw, bff_mobile_tv, "Маршрутизация к", "HTTP")
+'Rel(auth, authdb, "Читает/пишет", "JDBC")
+
+' BFF -> доменные сервисы (синхронно)
+Rel(bff_web, users, "REST/JSON")
+Rel(bff_web, metadata, "REST/JSON")
+'Rel(bff_web, search, "REST/JSON")
+'Rel(bff_web, rating, "REST/JSON")
+Rel(bff_web, subscr, "REST/JSON")
+Rel(bff_web, billing, "REST/JSON")
+Rel(bff_web, video, "REST/JSON")
+Rel(bff_web, reco, "REST/JSON")
+
+Rel(bff_mobile_tv, users, "REST/JSON")
+Rel(bff_mobile_tv, metadata, "REST/JSON")
+'Rel(bff_mobile_tv, search, "REST/JSON")
+'Rel(bff_mobile_tv, rating, "REST/JSON")
+Rel(bff_mobile_tv, subscr, "REST/JSON")
+Rel(bff_mobile_tv, billing, "REST/JSON")
+Rel(bff_mobile_tv, video, "REST/JSON")
+Rel(bff_mobile_tv, reco, "REST/JSON")
+
+' Сервисы и их БД
+Rel(users, users_db, "Читает/пишет", "SQL")
+Rel(metadata, metadata_db, "Читает/пишет", "SQL")
+Rel(video, video_db, "Читает/пишет", "SQL")
+'Rel(rating, rating_db, "Читает/пишет", "SQL")
+Rel(subscr, subscr_db, "Читает/пишет", "SQL")
+Rel(billing, billing_db, "Читает/пишет", "SQL")
+Rel(payments, payments_db, "Читает/пишет", "SQL")
+'Rel(loyalty, loyalty_db, "Читает/пишет", "SQL")
+'Rel(search, search_idx, "Индексирует/ищет")
+Rel(reco, reco_db, "Кэширует/читает")
+
+' Асинхронные взаимодействия внутри
+Rel(users, kafka, "Публикует события: UserRegistered, ProfileUpdated", "Kafka")
+Rel(subscr, kafka, "Публикует: SubscriptionChanged", "Kafka")
+Rel(billing, kafka, "Публикует: InvoiceCreated, ChargeSucceeded/Failed", "Kafka")
+'Rel(rating, kafka, "Публикует: MovieRated, FavoriteChanged", "Kafka")
+Rel(video, kafka, "Публикует: PlaybackStarted/Finished", "Kafka")
+'Rel(loyalty, kafka, "Публикует/читает: LoyaltyAccrued/Redeemed", "Kafka")
+
+Rel(reco, kafka, "Читает пользовательские события; публикует запросы/ответы", "Kafka")
+'Rel(kafka, queue_sr, "Использует схемы")
+
+' Интеграции с внешним миром
+Rel(payments, payprov, "Инициирует платежи, обрабатывает webhooks", "HTTPS")
+Rel(payprov, gw, "Webhooks -> /payments/webhook", "HTTPS")
+Rel(gw, payments, "Маршрут вебхуков", "HTTPS")
+
+Rel(video, ott, "Синхронизация каталогов, управление доступом/DRM", "HTTPS")
+Rel(video, s3, "Хранит/читает постеры/трейлеры", "S3 API")
+
+Rel(kafka, reco_ext, "Обмен данными/фид событиями", "Kafka/HTTPS")
+'Rel(loyalty, loyalty_ext, "Интеграции кампаний/купонов", "HTTPS")
+
+' Каталог -> Поисковой индекс
+'Rel(metadata, search, "Индексирует изменения каталога", "Kafka/REST")
+
+' Зависимости по чтению
+Rel(billing, payments, "Создание платежей/проверка статусов", "REST")
+Rel(subscr, billing, "Расчёт списаний/инвойсов", "REST")
+Rel(bff_web, payments, "Инициирует платёжные сессии", "REST")
+Rel(bff_mobile_tv, payments, "Инициирует платёжные сессии", "REST")
+
+' Безопасность/токены
+'Rel(users, auth, "Верификация токенов (интроспекция/JWKS)")
+'Rel_D(bff_web, auth, "Обновление токенов/PKCE", "OIDC")
+'Rel_D(bff_mobile_tv, auth, "Обновление токенов/PKCE/Device Code", "OIDC")
+
+@enduml
