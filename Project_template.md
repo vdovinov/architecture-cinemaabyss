@@ -5,7 +5,8 @@
 1. Спроектируйте to be архитектуру КиноБездны, разделив всю систему на отдельные домены и организовав интеграционное взаимодействие и единую точку вызова сервисов.
 Результат представьте в виде контейнерной диаграммы в нотации С4.
 Добавьте ссылку на файл в этот шаблон
-[ссылка на файл](ссылка)
+
+[container_diagram.puml](sprint2_task1/container_diagram.puml)
 
 # Задание 2
 
@@ -59,6 +60,16 @@
 Необходимые тесты для проверки этого API вызываются при запуске npm run test:local из папки tests/postman 
 Приложите скриншот тестов и скриншот состояния топиков Kafka из UI http://localhost:8090 
 
+![img.png](sprint2_task1/img6.png)
+
+![img_1.png](sprint2_task1/img7.png)
+
+![img.png](sprint2_task1/img8.png)
+
+![img.png](sprint2_task1/img9.png)
+
+![img.png](sprint2_task1/img10.png)
+
 # Задание 3
 
 Команда начала переезд в Kubernetes для лучшего масштабирования и повышения надежности. 
@@ -108,6 +119,8 @@ jobs:
 ```
 Как только сборка отработает и в github registry появятся ваши образы, можно переходить к блоку настройки Kubernetes
 Успешным результатом данного шага является "зеленая" сборка и "зеленые" тесты
+
+![img.png](sprint2_task1/img11.png)
 
 
 ### Proxy в Kubernetes
@@ -275,6 +288,11 @@ cat .docker/config.json | base64
 #### Шаг 3
 Добавьте сюда скриншота вывода при вызове https://cinemaabyss.example.com/api/movies и  скриншот вывода event-service после вызова тестов.
 
+![img.png](sprint2_task1/img.png)
+
+![img.png](sprint2_task1/img2.png)
+
+![img.png](sprint2_task1/img3.png)
 
 # Задание 4
 Для простоты дальнейшего обновления и развертывания вам как архитектуру необходимо так же реализовать helm-чарты для прокси-сервиса и проверить работу 
@@ -349,6 +367,10 @@ minikube tunnel
 Потом вызовите 
 https://cinemaabyss.example.com/api/movies
 и приложите скриншот развертывания helm и вывода https://cinemaabyss.example.com/api/movies
+
+![img.png](sprint2_task1/img4.png)
+
+![img.png](sprint2_task1/img5.png)
 
 ## Удаляем все
 

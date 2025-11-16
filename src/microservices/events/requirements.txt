@@ -1,0 +1,5 @@
+fastapi==0.120.2
+uvicorn[standard]==0.38.0
+aiokafka==0.12.0
+pydantic==2.12.3
+pydantic-settings==2.11.0
