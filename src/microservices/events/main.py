@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 #KAFKA_BOOTSTRAP_SERVERS = "cinemaabyss-kafka:9092"
 KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092").rstrip("/")
 logger.info(f"KAFKA_BROKERS: {KAFKA_BROKERS}")
-KAFKA_TOPIC = "movie-events"
+
+# Определяем список всех топиков, которые мы хотим читать
+TOPICS_TO_SUBSCRIBE = ["movie-events", "user-events", "payment-events"]
+#KAFKA_TOPIC = "movie-events"
 
 # Глобальные переменные для продюсера
 producer: AIOKafkaProducer | None = None
@@ -75,15 +78,15 @@ async def get_producer():
         logger.info("await producer.start() OK")
     return producer
 
-async def consume_messages():
+async def consume_messages(topics_list: list[str]):
     """Асинхронный консьюмер, который читает сообщения из топика."""
     consumer = AIOKafkaConsumer(
-        KAFKA_TOPIC,
+        *topics_list,
         bootstrap_servers=KAFKA_BROKERS,
         group_id="event-consumer-group",
         auto_offset_reset="earliest"
     )
-    logger.info(f"Запуск консьюмера для топика '{KAFKA_TOPIC}'...")
+    logger.info(f"Запуск консьюмера для топиков {', '.join(topics_list)}")
     await consumer.start()
     try:
         async for msg in consumer:
@@ -100,7 +103,7 @@ async def consume_messages():
 
 
 # Вспомогательная функция для публикации в Kafka и обработки ответа
-async def _publish_to_kafka(message_text: str, data_model: BaseModel):
+async def _publish_to_kafka(topic: str, message_text: str, data_model: BaseModel):
     try:
         producer = await get_producer()
 
@@ -110,7 +113,7 @@ async def _publish_to_kafka(message_text: str, data_model: BaseModel):
         )
 
         message_json = json.dumps(event_data.model_dump()).encode("utf-8")
-        metadata = await producer.send_and_wait(KAFKA_TOPIC, message_json)
+        metadata = await producer.send_and_wait(topic, message_json)
 
         return EventResponse(
             status="success",
@@ -133,7 +136,7 @@ async def lifespan(_app: FastAPI):
     Обрабатывает события запуска и завершения приложения.
     """
     # Этот код выполняется при запуске приложения (Startup)
-    asyncio.create_task(consume_messages())
+    asyncio.create_task(consume_messages(TOPICS_TO_SUBSCRIBE))
     logger.info("Микросервис 'events' запущен.")
     yield
     # Этот код выполняется при завершении приложения (Shutdown)
@@ -152,17 +155,8 @@ async def publish_event(event: Event):
     """
     Публикует новое событие в топик Kafka.
     """
-    #try:
-    #    producer = await get_producer()
-    #    message_data = json.dumps(event.model_dump()).encode("utf-8")
-    #    await producer.send_and_wait(KAFKA_TOPIC, message_data)
-    #    logger.info(f"Опубликовано сообщение: {event.message}")
-    #    return {"status": "success", "message": "Event published"}
-    #except Exception as e:
-    #    logger.error(f"Ошибка при публикации сообщения: {e}", exc_info=True)
-    #    raise HTTPException(status_code=500, detail="Failed to publish event"
-
     return await _publish_to_kafka(
+        "movie-events",
         message_text=event.message,
         data_model=event
     )
@@ -199,37 +193,8 @@ async def create_movie_event(movie_event: MovieEvent):
     """
     Принимает данные о событии фильма, форматирует их и отправляет в Kafka.
     """
-    # # try:
-    # #     producer = await get_producer()
-    #
-    #     # Преобразуем входящий MovieEvent в общую модель Event для Kafka
-    #     event_data = Event(
-    #         message=f"Movie action: {movie_event.action} for movie {movie_event.movie_id}",
-    #         data=movie_event.model_dump(exclude_unset=True)  # Используем все предоставленные поля
-    #     )
-    #
-    #     message_data = json.dumps(event_data.model_dump()).encode("utf-8")
-    #
-    #     # Отправляем сообщение и ждем подтверждения
-    #     metadata = await producer.send_and_wait(KAFKA_TOPIC, message_data)
-    #
-    #     logger.info(f"Опубликовано событие фильма: {movie_event.title} (Action: {movie_event.action})")
-    #
-    #     # Формируем ответ согласно EventResponse
-    #     return EventResponse(
-    #         status="success",
-    #         partition=metadata.partition,
-    #         offset=metadata.offset,
-    #         event=event_data
-    #     )
-    #
-    # except Exception as e:
-    #     logger.error(f"Ошибка при публикации события фильма: {e}", exc_info=True)
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail="Failed to publish movie event"
-    #     )
     return await _publish_to_kafka(
+        topic="movie-events",
         message_text=f"Movie action: {movie_event.action} for movie {movie_event.movie_id}",
         data_model=movie_event
     )
@@ -250,6 +215,7 @@ async def create_user_event(user_event: UserEvent):
     Принимает данные о событии пользователя, форматирует их и отправляет в Kafka.
     """
     return await _publish_to_kafka(
+        topic="user-events",
         message_text=f"User action: {user_event.action} for user {user_event.user_id}",
         data_model=user_event
     )
@@ -270,6 +236,7 @@ async def create_payment_event(payment_event: PaymentEvent):
     Принимает данные о событии платежа, форматирует их и отправляет в Kafka.
     """
     return await _publish_to_kafka(
+        topic="payment-events",
         message_text=f"Payment status: {payment_event.status} for payment {payment_event.payment_id}",
         data_model=payment_event
     )

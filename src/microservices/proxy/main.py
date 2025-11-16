@@ -18,12 +18,14 @@ MOVIES_SERVICE_URL = os.getenv("MOVIES_SERVICE_URL", "http://movies-service:8081
 EVENTS_SERVICE_URL = os.getenv("EVENTS_SERVICE_URL", "http://events-service:8082").rstrip("/")
 
 GRADUAL_MIGRATION = os.getenv("GRADUAL_MIGRATION", "false").lower() in ("1", "true", "yes", "on")
+logger.info(f"GRADUAL_MIGRATION:{GRADUAL_MIGRATION}")
+
 try:
     MOVIES_MIGRATION_PERCENT = max(0, min(100, int(os.getenv("MOVIES_MIGRATION_PERCENT", "0"))))
 except ValueError:
     MOVIES_MIGRATION_PERCENT = 0
+logger.info(f"MOVIES_MIGRATION_PERCENT:{MOVIES_MIGRATION_PERCENT}")
 
-#BACKEND_URL = "http://cinemaabyss-monolith:8080"
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -51,7 +53,7 @@ def choose_backend(path: str, request: Request) -> str:
         return EVENTS_SERVICE_URL
 
     if lower_path.startswith("api/movies"):
-        if GRADUAL_MIGRATION and MOVIES_MIGRATION_PERCENT in (50, 100):
+        if GRADUAL_MIGRATION and MOVIES_MIGRATION_PERCENT > 0:
             logger.info(f"MOVIES_SERVICE_URL: {MOVIES_SERVICE_URL}")
             return MOVIES_SERVICE_URL
         logger.info(f"MONOLITH_URL: {MONOLITH_URL}")
