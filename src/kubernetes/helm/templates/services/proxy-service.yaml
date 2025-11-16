@@ -25,7 +25,45 @@ spec:
     spec:
       containers:
       - name: proxy-service
-        ..... тут
+        # параметры из values.yaml для образа
+        image: {{ .Values.proxyService.image.repository }}:{{ .Values.proxyService.image.tag }}
+        imagePullPolicy: {{ .Values.proxyService.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.proxyService.service.targetPort }}
+        env:
+        # Переменные окружения из исходного YAML
+        - name: PORT
+          value: "{{ .Values.proxyService.service.targetPort }}"
+        - name: DB_CONNECTION_STRING
+          value: "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
+        envFrom:
+        # Ссылки на ConfigMap и Secrets (предполагая их имена в глобальных настройках)
+        - configMapRef:
+            name: cinemaabyss-config
+        - secretRef:
+            name: cinemaabyss-secrets
+        resources:
+          limits:
+            cpu: {{ .Values.proxyService.resources.limits.cpu}}
+            memory: {{ .Values.proxyService.resources.limits.memory}}
+          requests:
+            cpu: {{ .Values.proxyService.resources.requests.cpu}}
+            memory: {{ .Values.proxyService.resources.requests.memory}}
+        readinessProbe:
+          httpGet:
+            path: /api/events/health
+            port: {{ .Values.proxyService.service.targetPort }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/events/health
+            port: {{ .Values.proxyService.service.targetPort }}
+          initialDelaySeconds: 15
+          periodSeconds: 20
+      restartPolicy: Always
+      imagePullSecrets:
+        - name: dockerconfigjson
 ---
 apiVersion: v1
 kind: Service
@@ -38,5 +76,9 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   selector:
-    ... и тут
+    app: proxy-service
+  ports:
+  - port: {{ .Values.proxyService.service.port }}
+    targetPort: {{ .Values.proxyService.service.targetPort }}
+  type: {{ .Values.proxyService.service.type }}
 {{- end }}

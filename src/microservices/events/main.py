@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 import logging
@@ -16,7 +17,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация Kafka
-KAFKA_BOOTSTRAP_SERVERS = "cinemaabyss-kafka:9092"
+#KAFKA_BOOTSTRAP_SERVERS = "cinemaabyss-kafka:9092"
+KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092").rstrip("/")
+logger.info(f"KAFKA_BROKERS: {KAFKA_BROKERS}")
 KAFKA_TOPIC = "movie-events"
 
 # Глобальные переменные для продюсера
@@ -67,15 +70,16 @@ async def get_producer():
     """Возвращает асинхронного продюсера."""
     global producer
     if producer is None:
-        producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+        producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BROKERS)
         await producer.start()
+        logger.info("await producer.start() OK")
     return producer
 
 async def consume_messages():
     """Асинхронный консьюмер, который читает сообщения из топика."""
     consumer = AIOKafkaConsumer(
         KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        bootstrap_servers=KAFKA_BROKERS,
         group_id="event-consumer-group",
         auto_offset_reset="earliest"
     )
@@ -174,9 +178,10 @@ async def get_health_status():
     """
     Возвращает статус работоспособности микросервиса событий.
     """
+    logger.info("Проверка работоспособности микросервиса событий")
     return {"status": True}
 
-# энедпоинт для фильмов
+# эндпоинт для фильмов
 @app.post(
     "/api/events/movie",
     summary="Создание события фильма",
